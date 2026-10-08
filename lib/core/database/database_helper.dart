@@ -106,6 +106,18 @@ class DatabaseHelper {
     return result.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
+  /// Lấy danh sách giao dịch lọc theo danh mục cụ thể
+  Future<List<TransactionModel>> getTransactionsByCategory(String category) async {
+    final db = await database;
+    final result = await db.query(
+      'transactions',
+      where: 'category = ?',
+      whereArgs: [category],
+      orderBy: 'createdAt DESC',
+    );
+    return result.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
   Future<double> getTotalSpending() async {
     final db = await database;
     final result = await db.rawQuery('SELECT SUM(amount) as total FROM transactions');

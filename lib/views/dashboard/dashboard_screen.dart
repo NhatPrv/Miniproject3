@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/constants/category_constants.dart';
 import '../../core/database/database_helper.dart';
@@ -6,6 +7,7 @@ import '../../models/transaction_model.dart';
 import '../camera/camera_screen.dart';
 import '../charts/animated_bar_chart.dart';
 import '../charts/animated_donut_chart.dart';
+import 'widgets/category_detail_sheet.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -21,6 +23,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<TransactionModel> _transactions = [];
   bool _isLoading = true;
   int _selectedChartTab = 0; // 0: Donut (Danh mục), 1: Bar (Theo tuần)
+  String? _selectedCategoryFilter; // null = Tất cả
 
   @override
   void initState() {
@@ -58,8 +61,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadDashboardData();
   }
 
+  void _openCategoryDetail(String categoryKey) {
+    CategoryDetailSheet.show(context, categoryKey, _loadDashboardData);
+  }
+
+  void _showReceiptImageModal(String imagePath) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.file(
+                File(imagePath),
+                fit: BoxFit.contain,
+              ),
+            ),
+            IconButton(
+              icon: const CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: Icon(Icons.close, color: Colors.white),
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Lọc giao dịch theo danh mục nếu có filter
+    final displayedTransactions = _selectedCategoryFilter == null
+        ? _transactions
+        : _transactions
+            .where((t) => t.category.toLowerCase() == _selectedCategoryFilter!.toLowerCase())
+            .toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
@@ -101,20 +144,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _buildChartsCard(),
                     const SizedBox(height: 20),
 
+                    // Thanh lọc danh mục chi tiêu (Category Filter Chips)
+                    _buildCategoryFilterBar(),
+                    const SizedBox(height: 14),
+
                     // Tiêu đề danh sách giao dịch
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Lịch Sử Giao Dịch',
-                          style: TextStyle(
+                        Text(
+                          _selectedCategoryFilter == null
+                              ? 'Lịch Sử Giao Dịch'
+                              : 'Hóa Đơn: ${CategoryConstants.getMetadataByKey(_selectedCategoryFilter!).displayName}',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
-                          '${_transactions.length} mục',
+                          '${displayedTransactions.length} mục',
                           style: const TextStyle(color: Colors.white54, fontSize: 13),
                         ),
                       ],
@@ -122,16 +171,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 10),
 
                     // Card 3: Danh sách giao dịch
-                    if (_transactions.isEmpty)
+                    if (displayedTransactions.isEmpty)
                       _buildEmptyState()
                     else
                       ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _transactions.length,
+                        itemCount: displayedTransactions.length,
                         separatorBuilder: (context, index) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
-                          final item = _transactions[index];
+                          final item = displayedTransactions[index];
                           return _buildTransactionItem(item);
                         },
                       ),
@@ -287,6 +336,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             AnimatedDonutChart(
               categoryDistribution: _categoryDistribution,
               totalAmount: _totalSpending,
+              onCategoryTap: (catKey) => _openCategoryDetail(catKey),
             )
           else
             AnimatedBarChart(
@@ -297,8 +347,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildCategoryFilterBar() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          // Chip "Tất cả"
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              selected: _selectedCategoryFilter == null,
+              label: const Text('Tất cả'),
+              selectedColor: const Color(0xFF10B981),
+              backgroundColor: const Color(0xFF1E293B),
+              labelStyle: TextStyle(
+                color: _selectedCategoryFilter == null ? Colors.white : Colors.white70,
+                fontWeight: _selectedCategoryFilter == null ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12,
+              ),
+              onSelected: (_) => setState(() => _selectedCategoryFilter = null),
+            ),
+          ),
+          // Các chip danh mục
+          ...CategoryConstants.categoryKeys.map((catKey) {
+            final isSelected = _selectedCategoryFilter == catKey;
+            final meta = CategoryConstants.getMetadataByKey(catKey);
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                selected: isSelected,
+                avatar: Icon(meta.icon, size: 14, color: isSelected ? Colors.white : meta.color),
+                label: Text(meta.displayName.split(' ').first),
+                selectedColor: meta.color,
+                backgroundColor: const Color(0xFF1E293B),
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 12,
+                ),
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedCategoryFilter = selected ? catKey : null;
+                  });
+                },
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTransactionItem(TransactionModel item) {
     final meta = CategoryConstants.getMetadataByKey(item.category);
+    final hasImage = item.imagePath != null && File(item.imagePath!).existsSync();
 
     return Dismissible(
       key: Key(item.id.toString()),
@@ -317,51 +419,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _deleteTransaction(item.id!);
         }
       },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: meta.color.withValues(alpha: 0.2),
-              child: Icon(meta.icon, color: meta.color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.merchant,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _openCategoryDetail(item.category),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Row(
+            children: [
+              // Ảnh thumbnail nếu có ảnh hóa đơn chụp thực tế
+              if (hasImage)
+                GestureDetector(
+                  onTap: () => _showReceiptImageModal(item.imagePath!),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(item.imagePath!),
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${item.date} • ${meta.displayName.split(' ').first}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
+                )
+              else
+                CircleAvatar(
+                  backgroundColor: meta.color.withValues(alpha: 0.2),
+                  child: Icon(meta.icon, color: meta.color, size: 20),
+                ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.merchant,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text(
+                          '${item.date} • ${meta.displayName.split(' ').first}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                        if (hasImage) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.image, size: 14, color: Color(0xFF10B981)),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Text(
-              CurrencyFormatter.formatVND(item.amount),
-              style: const TextStyle(
-                color: Color(0xFF34D399),
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+              Text(
+                CurrencyFormatter.formatVND(item.amount),
+                style: const TextStyle(
+                  color: Color(0xFF34D399),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -374,14 +503,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           children: [
-            Icon(Icons.receipt_outlined, color: Colors.white38, size: 48),
-            SizedBox(height: 12),
+            const Icon(Icons.receipt_outlined, color: Colors.white38, size: 48),
+            const SizedBox(height: 12),
             Text(
-              'Chưa có giao dịch nào được ghi nhận',
-              style: TextStyle(color: Colors.white60, fontSize: 14),
+              _selectedCategoryFilter == null
+                  ? 'Chưa có giao dịch nào được ghi nhận'
+                  : 'Không có giao dịch nào trong danh mục $_selectedCategoryFilter',
+              style: const TextStyle(color: Colors.white60, fontSize: 14),
             ),
           ],
         ),

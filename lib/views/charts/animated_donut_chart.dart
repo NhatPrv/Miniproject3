@@ -6,11 +6,13 @@ import '../../core/utils/currency_formatter.dart';
 class AnimatedDonutChart extends StatefulWidget {
   final Map<String, double> categoryDistribution;
   final double totalAmount;
+  final void Function(String categoryKey)? onCategoryTap;
 
   const AnimatedDonutChart({
     super.key,
     required this.categoryDistribution,
     required this.totalAmount,
+    this.onCategoryTap,
   });
 
   @override
@@ -118,23 +120,33 @@ class _AnimatedDonutChartState extends State<AnimatedDonutChart>
             if (entry.value <= 0) return const SizedBox.shrink();
             final percentage = (entry.value / widget.totalAmount * 100).toStringAsFixed(1);
             final meta = CategoryConstants.getMetadataByKey(entry.key);
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: meta.color,
-                    shape: BoxShape.circle,
-                  ),
+            return GestureDetector(
+              onTap: () => widget.onCategoryTap?.call(entry.key),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  '${meta.displayName.split(' ').first}: $percentage%',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: meta.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${meta.displayName.split(' ').first}: $percentage%',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             );
           }).toList(),
         ),
