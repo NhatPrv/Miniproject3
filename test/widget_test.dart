@@ -1,30 +1,29 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:expense_ocr_app/main.dart';
+import 'package:expense_ocr_app/core/utils/receipt_parser.dart';
+import 'package:expense_ocr_app/core/utils/currency_formatter.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('ReceiptParser & CurrencyFormatter Unit Tests', () {
+    test('Heuristic regex parses total amount with VND symbol', () {
+      const mockReceipt = '''
+HIGHLANDS COFFEE
+Ngay: 08/10/2026
+1. Ca phe sua da: 45.000d
+Tong cong: 150.000 VND
+Cam on quy khach!
+''';
+      final result = ReceiptParser.parseRawString(mockReceipt);
+      expect(result.totalAmount, equals(150000.0));
+      expect(result.date, equals('08/10/2026'));
+      expect(result.merchant, contains('HIGHLANDS'));
+      expect(result.suggestedCategory, equals('Food'));
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('CurrencyFormatter parses and formats correctly', () {
+      expect(CurrencyFormatter.parseAmount('150.000'), equals(150000.0));
+      expect(CurrencyFormatter.parseAmount('150,000 VND'), equals(150000.0));
+      expect(CurrencyFormatter.formatCompact(150000.0), equals('150K'));
+      expect(CurrencyFormatter.formatCompact(1500000.0), equals('1.5Tr'));
+    });
   });
 }

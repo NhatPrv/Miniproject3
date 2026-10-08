@@ -7,10 +7,6 @@ class CurrencyFormatter {
     decimalDigits: 0,
   );
 
-  static final NumberFormat _compactFormat = NumberFormat.compact(
-    locale: 'vi_VN',
-  );
-
   /// Định dạng số tiền sang chuẩn hiển thị: "150.000 ₫"
   static String formatVND(double amount) {
     return _vndFormat.format(amount.round());
